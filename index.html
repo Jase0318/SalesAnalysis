@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>業績分析系統 (Sales Analysis System)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; background-color: #f3f4f6; }
+        .sidebar-item { transition: all 0.3s; cursor: pointer; }
+        .sidebar-item:hover, .sidebar-item.active { background-color: #374151; border-left: 4px solid #3b82f6; }
+        .card { background: white; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.5rem; }
+        .table-header { @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50; }
+        .table-cell { @apply px-6 py-4 whitespace-nowrap text-sm text-gray-700; }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Markdown Styles */
+        .prose h1, .prose h2, .prose h3 { margin-top: 1em; margin-bottom: 0.5em; font-weight: bold; color: #1f2937; }
+        .prose p { margin-bottom: 1em; line-height: 1.6; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+        .prose strong { color: #2563eb; }
+
+        /* Loading Spinner */
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Custom Dropdown Styles */
+        .cust-dropdown-content { max-height: 300px; overflow-y: auto; }
+        .checkbox-item:hover { background-color: #f3f4f6; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-900 text-white flex flex-col shadow-xl z-20">
+        <div class="h-16 flex items-center justify-center border-b border-gray-700">
+            <h1 class="text-xl font-bold tracking-wider"><i class="fas fa-chart-line mr-2"></i>業績分析系統</h1>
+        </div>
+        <nav class="flex-1 py-6 overflow-y-auto">
+            <div onclick="switchTab('upload')" id="nav-upload" class="sidebar-item active px-6 py-4 flex items-center">
+                <i class="fas fa-cloud-upload-alt w-6"></i>
+                <span class="font-medium">資料上傳</span>
+            </div>
+            <div onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-item px-6 py-4 flex items-center">
+                <i class="fas fa-tachometer-alt w-6"></i>
+                <span class="font-medium">綜合分析儀表板</span>
+            </div>
+            <div onclick="switchTab('comparison')" id="nav-comparison" class="sidebar-item px-6 py-4 flex items-center">
+                <i class="fas fa-exchange-alt w-6"></i>
+                <span class="font-medium">主資料差異分析</span>
+                <span id="diff-badge" class="hidden ml-auto bg-red-500 text-xs font-bold px-2 py-0.5 rounded-full">New</span>
+            </div>
+            <div onclick="switchTab('customer')" id="nav-customer" class="sidebar-item px-6 py-4 flex items-center">
+                <i class="fas fa-user-tie w-6"></i>
+                <span class="font-medium">特定客戶分析</span>
+            </div>
+        </nav>
+
+        <!-- API Key Input -->
+        <div class="p-4 border-t border-gray-700">
+            <label class="text-xs text-gray-400 block mb-1">Gemini API Key (選填)</label>
+            <input type="password" id="api-key-input" placeholder="Enter API Key" class="w-full px-2 py-1 text-xs text-gray-900 bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="text-[10px] text-gray-500 mt-1">若環境未提供，請在此輸入</div>
+        </div>
+
+        <div class="p-4 text-xs text-gray-400 text-center">
+            &copy; 2026 Sales System
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+        <!-- Header -->
+        <header class="h-16 bg-white shadow-sm flex items-center justify-between px-8 z-10">
+            <h2 id="page-title" class="text-2xl font-bold text-gray-800">資料上傳</h2>
+            <div class="flex items-center space-x-4">
+                <div class="text-sm text-gray-600">
+                    目前狀態: <span id="status-indicator" class="font-bold text-yellow-600">等待資料</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div id="content-area" class="flex-1 overflow-auto p-8 relative">
+            
+            <!-- VIEW: UPLOAD -->
+            <div id="view-upload" class="space-y-6 fade-in">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 2025 Upload -->
+                    <div class="card border-l-4 border-gray-400 relative">
+                         <!-- Storage Indicator -->
+                         <div id="storage-indicator-2025" class="absolute top-2 right-2 hidden">
+                            <span class="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-semibold" title="資料已儲存於瀏覽器">
+                                <i class="fas fa-save mr-1"></i> 已快取
+                            </span>
+                        </div>
+
+                        <h3 class="text-lg font-bold text-gray-700 mb-4">上傳 2025 年度資料 (參考用)</h3>
+                        <p class="text-sm text-gray-500 mb-4">請上傳去年度的完整資料以供參考。系統會自動記憶此次上傳的檔案。</p>
+                        <div class="flex items-center justify-center w-full">
+                            <label for="file-2025" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <i id="icon-2025" class="fas fa-file-excel text-3xl text-gray-400 mb-2"></i>
+                                    <p class="text-sm text-gray-500"><span class="font-semibold">點擊更新</span> 或拖曳新檔案</p>
+                                    <p class="text-xs text-gray-500">支援 .csv, .xlsx, .xls</p>
+                                </div>
+                                <input id="file-2025" type="file" class="hidden" accept=".csv, .xlsx, .xls" onchange="handleFileSelect(event, '2025')" />
+                            </label>
+                        </div>
+                        <div id="file-info-2025" class="mt-2 text-sm text-green-600 hidden flex items-center justify-between">
+                            <span><i class="fas fa-check-circle"></i> 已載入: <span id="filename-2025" class="font-medium"></span></span>
+                            <button onclick="clearStorage2025()" class="text-xs text-red-400 hover:text-red-600 underline ml-2">清除快取</button>
+                        </div>
+                    </div>
+
+                    <!-- 2026 Upload -->
+                    <div class="card border-l-4 border-blue-500">
+                        <h3 class="text-lg font-bold text-gray-700 mb-4">上傳 2026 Year to Date 資料</h3>
+                        <p class="text-sm text-gray-500 mb-4">上傳最新的 YTD 資料。若已上傳過，系統將自動進行前後版本比對。</p>
+                        <div class="flex items-center justify-center w-full">
+                            <label for="file-2026" class="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors">
+                                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <i class="fas fa-file-excel text-3xl text-blue-500 mb-2"></i>
+                                    <p class="text-sm text-gray-500"><span class="font-semibold">點擊上傳</span> 或拖曳檔案</p>
+                                    <p class="text-xs text-gray-500">支援 .csv, .xlsx, .xls</p>
+                                </div>
+                                <input id="file-2026" type="file" class="hidden" accept=".csv, .xlsx, .xls" onchange="handleFileSelect(event, '2026')" />
+                            </label>
+                        </div>
+                        <div id="file-info-2026" class="mt-2 text-sm text-blue-600 hidden">
+                            <i class="fas fa-check-circle"></i> 最新載入: <span id="filename-2026"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800">
+                    <h4 class="font-bold mb-2"><i class="fas fa-info-circle"></i> 系統說明</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>系統支援 CSV、Excel (.xlsx, .xls) 格式。</li>
+                        <li>系統會自動解析標題，請確保包含: <code>NetAnnualSalesValueCfx</code>, <code>ShipToCustomerName</code>, <code>OrderClassification</code>, <code>Sbu</code>, <code>ProductFamily</code>。</li>
+                        <li><strong>SBU 自動對應規則：</strong>
+                            <ul class="list-disc list-inside ml-4 text-xs text-gray-600">
+                                <li>Books / Information Solutions &rarr; <strong>ProQuest</strong></li>
+                                <li>R&A &rarr; <strong>R&A</strong></li>
+                                <li>Ex Libris / Innovative &rarr; <strong>Software</strong></li>
+                            </ul>
+                        </li>
+                        <li><strong>資料儲存：</strong>2025 年度資料會自動儲存在您的瀏覽器中，下次開啟時無需重新上傳。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="hidden space-y-6 fade-in">
+                <!-- Gemini Insight Section -->
+                <div class="card bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 mb-6">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-lg font-bold text-indigo-800"><i class="fas fa-robot mr-2"></i>AI 業績顧問</h3>
+                            <p class="text-sm text-indigo-600 mt-1">點擊按鈕，讓 Gemini AI 為您分析當前業績狀況並提供策略建議。</p>
+                        </div>
+                        <button onclick="generateDashboardInsight()" class="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center">
+                            <i class="fas fa-magic mr-2"></i> ✨ 生成智慧洞察
+                        </button>
+                    </div>
+                    <div id="ai-insight-result" class="hidden mt-4 pt-4 border-t border-indigo-200 prose max-w-none text-sm text-gray-700">
+                        <!-- AI content goes here -->
+                    </div>
+                    <div id="ai-insight-loading" class="hidden mt-4 flex justify-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Top Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                        <div class="text-blue-100 text-sm font-medium uppercase">2026 總銷售額 (YTD)</div>
+                        <div class="text-3xl font-bold mt-2" id="kpi-total-sales">$0</div>
+                        <div class="text-xs mt-2 text-blue-200">基於最新上傳資料</div>
+                    </div>
+                    <div class="card bg-white border-l-4 border-green-500">
+                        <div class="text-gray-500 text-sm font-medium uppercase">訂單總數</div>
+                        <div class="text-3xl font-bold mt-2 text-gray-800" id="kpi-total-orders">0</div>
+                    </div>
+                    <div class="card bg-white border-l-4 border-purple-500">
+                        <div class="text-gray-500 text-sm font-medium uppercase">活躍客戶數</div>
+                        <div class="text-3xl font-bold mt-2 text-gray-800" id="kpi-active-customers">0</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Order Classification Table -->
+                    <div class="card">
+                        <h3 class="text-lg font-bold text-gray-700 mb-4">業績類型分析 (Order Classification)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">業績數字</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">佔比</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-classification-body" class="bg-white divide-y divide-gray-200">
+                                    <!-- Dynamic Data -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pie Chart -->
+                    <div class="card flex flex-col items-center justify-center">
+                        <h3 class="text-lg font-bold text-gray-700 mb-4 w-full text-left">產品家族佔比 (SBU Breakdown)</h3>
+                        <div class="w-full h-64 relative">
+                            <canvas id="sbuPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top 20 Customers -->
+                <div class="card">
+                    <h3 class="text-lg font-bold text-gray-700 mb-4">前 20 大訂單 (Top 20 Orders)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="table-header">排名</th>
+                                    <th class="table-header">客戶名稱</th>
+                                    <th class="table-header text-right">銷售金額</th>
+                                    <th class="table-header">產品家族</th>
+                                    <th class="table-header">SBU</th>
+                                    <th class="table-header">業績類型</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-top20-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Dynamic Data -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: COMPARISON -->
+            <div id="view-comparison" class="hidden space-y-6 fade-in">
+                <div id="no-comparison-msg" class="text-center py-20 text-gray-500">
+                    <i class="fas fa-search text-4xl mb-4 text-gray-300"></i>
+                    <p class="text-lg">尚無比較資料。</p>
+                    <p class="text-sm">請再次上傳新的 2026 資料以觸發差異分析。</p>
+                </div>
+
+                <div id="comparison-content" class="hidden space-y-8">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-yellow-700">
+                                    比較範圍：<strong>本次上傳 2026 YTD</strong> vs <strong>前次上傳 2026 YTD</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Added Rows -->
+                    <div class="card border-t-4 border-green-500">
+                        <h3 class="text-lg font-bold text-green-700 mb-2">
+                            <i class="fas fa-plus-circle mr-2"></i>新增加的訂單 (New Rows)
+                            <span id="badge-added" class="ml-2 bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">0</span>
+                        </h3>
+                        <div class="overflow-x-auto max-h-96">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="table-header">客戶</th>
+                                        <th class="table-header">產品</th>
+                                        <th class="table-header text-right">金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-added-body" class="bg-white divide-y divide-gray-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Deleted Rows -->
+                    <div class="card border-t-4 border-red-500">
+                        <h3 class="text-lg font-bold text-red-700 mb-2">
+                            <i class="fas fa-minus-circle mr-2"></i>被刪除的訂單 (Deleted Rows)
+                            <span id="badge-deleted" class="ml-2 bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">0</span>
+                        </h3>
+                        <div class="overflow-x-auto max-h-96">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="table-header">客戶</th>
+                                        <th class="table-header">產品</th>
+                                        <th class="table-header text-right">原金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-deleted-body" class="bg-white divide-y divide-gray-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Changed Rows -->
+                    <div class="card border-t-4 border-blue-500">
+                        <h3 class="text-lg font-bold text-blue-700 mb-2">
+                            <i class="fas fa-edit mr-2"></i>金額變動的訂單 (Amount Changed)
+                            <span id="badge-changed" class="ml-2 bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">0</span>
+                        </h3>
+                        <div class="overflow-x-auto max-h-96">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="table-header">客戶</th>
+                                        <th class="table-header">產品</th>
+                                        <th class="table-header text-right">舊金額</th>
+                                        <th class="table-header text-right">新金額</th>
+                                        <th class="table-header text-right">差異</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-changed-body" class="bg-white divide-y divide-gray-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: CUSTOMER ANALYSIS -->
+            <div id="view-customer" class="hidden space-y-6 fade-in">
+                <div class="card bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">選擇客戶進行分析 (可多選)</label>
+                    
+                    <!-- Custom Multi-Select Dropdown -->
+                    <div class="relative group" id="cust-dropdown-wrapper">
+                        <button id="cust-dropdown-btn" onclick="toggleCustDropdown()" class="w-full bg-white border border-gray-300 text-left px-4 py-3 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center">
+                            <span id="cust-dropdown-label" class="text-gray-500">請點擊選擇客戶...</span>
+                            <i class="fas fa-chevron-down text-gray-400"></i>
+                        </button>
+                        
+                        <!-- Dropdown Content -->
+                        <div id="cust-dropdown-menu" class="hidden absolute w-full bg-white border border-gray-300 rounded-b-md shadow-lg z-50 mt-1">
+                            <div class="p-2 border-b bg-gray-50 flex flex-col gap-2">
+                                <input type="text" id="cust-search-input" placeholder="搜尋客戶名稱..." onkeyup="filterCustList(this.value)" class="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:border-blue-500">
+                                <div class="flex justify-between text-xs text-blue-600 px-1">
+                                    <button onclick="selectAllCustomers(true)" class="hover:underline">全選</button>
+                                    <button onclick="selectAllCustomers(false)" class="hover:underline text-red-500">清除已選</button>
+                                </div>
+                            </div>
+                            <div id="cust-list-container" class="cust-dropdown-content">
+                                <!-- Checkboxes will be injected here -->
+                                <div class="p-4 text-center text-gray-400 text-sm">請先上傳資料</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="customer-analysis-content" class="hidden space-y-6 mt-6">
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-bold text-blue-700">綜合分析報告</h3>
+                                <p class="text-sm text-blue-600">已選擇 <span id="selected-count" class="font-bold">0</span> 位客戶</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-blue-500 uppercase">群體總銷售額</div>
+                                <div id="group-total-sales" class="text-xl font-bold text-blue-800">$0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SBU Breakdown for Customer -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- R&A -->
+                        <div class="card border-t-4 border-indigo-500">
+                            <h4 class="font-bold text-indigo-700 mb-3">R&A 銷售紀錄</h4>
+                            <div class="overflow-y-auto max-h-60">
+                                <table class="w-full text-sm">
+                                    <tbody id="cust-ra-body"></tbody>
+                                </table>
+                            </div>
+                            <div id="cust-ra-empty" class="text-xs text-gray-400 italic mt-2 hidden">無資料</div>
+                        </div>
+                         <!-- ProQuest -->
+                         <div class="card border-t-4 border-pink-500">
+                            <h4 class="font-bold text-pink-700 mb-3">ProQuest 銷售紀錄</h4>
+                            <div class="overflow-y-auto max-h-60">
+                                <table class="w-full text-sm">
+                                    <tbody id="cust-pq-body"></tbody>
+                                </table>
+                            </div>
+                            <div id="cust-pq-empty" class="text-xs text-gray-400 italic mt-2 hidden">無資料</div>
+                        </div>
+                         <!-- Software -->
+                         <div class="card border-t-4 border-cyan-500">
+                            <h4 class="font-bold text-cyan-700 mb-3">Software 銷售紀錄</h4>
+                            <div class="overflow-y-auto max-h-60">
+                                <table class="w-full text-sm">
+                                    <tbody id="cust-sw-body"></tbody>
+                                </table>
+                            </div>
+                            <div id="cust-sw-empty" class="text-xs text-gray-400 italic mt-2 hidden">無資料</div>
+                        </div>
+                    </div>
+
+                    <!-- White Space Analysis & AI Pitch -->
+                    <div class="card bg-gray-800 text-white">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold"><i class="fas fa-lightbulb text-yellow-400 mr-2"></i>群體產品空白區 (White Space)</h3>
+                                <p class="text-sm text-gray-400">以下是該客戶群體<span class="text-yellow-300 font-bold">完全尚未購買</span>，但市場熱門的產品：</p>
+                            </div>
+                            <button onclick="generateSalesPitch()" class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-gray-900 font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center text-sm whitespace-nowrap">
+                                <i class="fas fa-comment-dollar mr-2"></i> ✨ 生成群體策略
+                            </button>
+                        </div>
+
+                        <div id="white-space-container" class="flex flex-wrap gap-2 mb-6">
+                            <!-- Tags go here -->
+                        </div>
+
+                        <!-- AI Pitch Result -->
+                        <div id="ai-pitch-result" class="hidden bg-gray-700 rounded p-4 border border-gray-600 prose prose-invert max-w-none text-sm">
+                            <!-- AI content goes here -->
+                        </div>
+                         <div id="ai-pitch-loading" class="hidden mt-4 flex justify-center">
+                            <div class="spinner border-gray-400 border-l-yellow-400"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- Gemini API Configuration ---
+        let apiKey = ""; 
+
+        // --- Constants ---
+        const STORAGE_KEY_2025 = 'sales_analysis_data_2025';
+
+        // --- Global State ---
+        const state = {
+            data2025: [],
+            current2026: [],
+            previous2026: [],
+            hasComparison: false,
+            allProductFamilies: new Set(),
+            chartInstance: null,
+            selectedCustomers: new Set() // Changed to Set for multi-select
+        };
+
+        const formatCurrency = (val) => {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val);
+        };
+
+        const formatPercent = (val) => {
+            return (val * 100).toFixed(1) + '%';
+        };
+
+        // --- Initialization ---
+        window.onload = function() {
+            loadCachedData2025();
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(event) {
+                const wrapper = document.getElementById('cust-dropdown-wrapper');
+                const menu = document.getElementById('cust-dropdown-menu');
+                if (wrapper && !wrapper.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        };
+
+        // --- Custom Dropdown Logic ---
+        function toggleCustDropdown() {
+            const menu = document.getElementById('cust-dropdown-menu');
+            menu.classList.toggle('hidden');
+            if(!menu.classList.contains('hidden')) {
+                document.getElementById('cust-search-input').focus();
+            }
+        }
+
+        function updateCustomerDropdown() {
+            const container = document.getElementById('cust-list-container');
+            container.innerHTML = '';
+            
+            const customers = [...new Set(state.current2026.map(i => i.customer))].sort();
+            
+            if (customers.length === 0) {
+                container.innerHTML = '<div class="p-4 text-center text-gray-400 text-sm">無客戶資料</div>';
+                return;
+            }
+
+            customers.forEach(cust => {
+                const div = document.createElement('div');
+                div.className = 'checkbox-item px-4 py-2 flex items-center cursor-pointer border-b border-gray-100 last:border-0';
+                div.onclick = (e) => {
+                    // Prevent triggering checking when clicking the label wrapper if input was clicked directly
+                    if (e.target.tagName !== 'INPUT') {
+                        const checkbox = div.querySelector('input');
+                        checkbox.checked = !checkbox.checked;
+                        toggleCustomerSelection(cust, checkbox.checked);
+                    }
+                };
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out cursor-pointer';
+                checkbox.checked = state.selectedCustomers.has(cust);
+                checkbox.onclick = (e) => {
+                    e.stopPropagation(); // Stop bubbling to div onclick
+                    toggleCustomerSelection(cust, e.target.checked);
+                };
+
+                const label = document.createElement('span');
+                label.className = 'ml-3 text-sm text-gray-700 select-none';
+                label.textContent = cust;
+
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                container.appendChild(div);
+            });
+
+            updateDropdownLabel();
+        }
+
+        function filterCustList(query) {
+            const filter = query.toLowerCase();
+            const items = document.querySelectorAll('.checkbox-item');
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(filter)) {
+                    item.classList.remove('hidden');
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+        }
+
+        function toggleCustomerSelection(cust, isChecked) {
+            if (isChecked) {
+                state.selectedCustomers.add(cust);
+            } else {
+                state.selectedCustomers.delete(cust);
+            }
+            updateDropdownLabel();
+            analyzeCustomer(); // Real-time analysis
+        }
+
+        function selectAllCustomers(selectAll) {
+            const checkboxes = document.querySelectorAll('#cust-list-container input[type="checkbox"]');
+            const visibleItems = document.querySelectorAll('.checkbox-item:not(.hidden)');
+            
+            // Only affect visible items (respect search filter)
+            visibleItems.forEach(item => {
+                const checkbox = item.querySelector('input');
+                const custName = item.querySelector('span').textContent;
+                checkbox.checked = selectAll;
+                if (selectAll) {
+                    state.selectedCustomers.add(custName);
+                } else {
+                    state.selectedCustomers.delete(custName);
+                }
+            });
+            
+            updateDropdownLabel();
+            analyzeCustomer();
+        }
+
+        function updateDropdownLabel() {
+            const count = state.selectedCustomers.size;
+            const btnLabel = document.getElementById('cust-dropdown-label');
+            const labelCount = document.getElementById('selected-count');
+            
+            labelCount.textContent = count;
+
+            if (count === 0) {
+                btnLabel.textContent = "請點擊選擇客戶...";
+                btnLabel.classList.add('text-gray-500');
+                btnLabel.classList.remove('text-gray-900');
+            } else if (count === 1) {
+                btnLabel.textContent = [...state.selectedCustomers][0];
+                btnLabel.classList.remove('text-gray-500');
+                btnLabel.classList.add('text-gray-900');
+            } else {
+                btnLabel.textContent = `已選擇 ${count} 位客戶`;
+                btnLabel.classList.remove('text-gray-500');
+                btnLabel.classList.add('text-gray-900');
+            }
+        }
+
+        // --- Analysis Logic ---
+        function analyzeCustomer() {
+            const content = document.getElementById('customer-analysis-content');
+            const selectedCusts = Array.from(state.selectedCustomers);
+            
+            if (selectedCusts.length === 0) {
+                content.classList.add('hidden');
+                return;
+            }
+            content.classList.remove('hidden');
+
+            // Filter data for ALL selected customers
+            const custData = state.current2026.filter(i => state.selectedCustomers.has(i.customer));
+            
+            // Calculate Group Total
+            const groupTotal = custData.reduce((acc, i) => acc + i.amount, 0);
+            document.getElementById('group-total-sales').textContent = formatCurrency(groupTotal);
+
+            // Group by SBU (Aggregate duplicate products if multiple customers bought same product family)
+            // Strategy: List all transaction lines or aggregate by Product Family?
+            // "列出銷售紀錄" implies listing lines or aggregated product families. 
+            // Let's aggregate by Product Family for clearer view when multiple customers are selected.
+            
+            const aggregateBySbu = (sbuName) => {
+                const sbuItems = custData.filter(i => i.sbu === sbuName);
+                const grouped = {};
+                sbuItems.forEach(item => {
+                    if(!grouped[item.productFamily]) grouped[item.productFamily] = 0;
+                    grouped[item.productFamily] += item.amount;
+                });
+                return Object.entries(grouped).map(([fam, amt]) => ({ productFamily: fam, amount: amt })).sort((a,b) => b.amount - a.amount);
+            };
+
+            const raData = aggregateBySbu('R&A');
+            const pqData = aggregateBySbu('ProQuest');
+            const swData = aggregateBySbu('Software');
+
+            renderCustomerSubTable('cust-ra-body', 'cust-ra-empty', raData);
+            renderCustomerSubTable('cust-pq-body', 'cust-pq-empty', pqData);
+            renderCustomerSubTable('cust-sw-body', 'cust-sw-empty', swData);
+
+            // White Space Analysis (Group Level)
+            // Definition: Products that NONE of the selected customers have purchased.
+            const groupOwnedProducts = new Set(custData.map(i => i.productFamily));
+            const whiteSpace = [...state.allProductFamilies].filter(p => !groupOwnedProducts.has(p));
+            
+            // Sort white space by global popularity (frequency in full dataset) to show relevant ones
+            // Calculate global popularity once
+            const globalPop = {};
+            state.current2026.forEach(i => {
+                globalPop[i.productFamily] = (globalPop[i.productFamily] || 0) + 1;
+            });
+            whiteSpace.sort((a, b) => (globalPop[b] || 0) - (globalPop[a] || 0));
+
+            const wsContainer = document.getElementById('white-space-container');
+            wsContainer.innerHTML = '';
+            
+            if (whiteSpace.length === 0) {
+                wsContainer.innerHTML = '<span class="text-gray-400">該群體已購買所有產品線！</span>';
+            } else {
+                whiteSpace.slice(0, 15).forEach(prod => {
+                    const tag = document.createElement('span');
+                    tag.className = 'px-3 py-1 bg-gray-700 rounded-full text-xs text-gray-200 border border-gray-600';
+                    tag.textContent = prod;
+                    wsContainer.appendChild(tag);
+                });
+                if (whiteSpace.length > 15) {
+                     const more = document.createElement('span');
+                     more.className = 'text-xs text-gray-400 self-center';
+                     more.textContent = `...以及其他 ${whiteSpace.length - 15} 項`;
+                     wsContainer.appendChild(more);
+                }
+            }
+            
+            // Reset AI Pitch Area
+            document.getElementById('ai-pitch-result').classList.add('hidden');
+        }
+
+        function renderCustomerSubTable(tbodyId, emptyId, data) {
+            const tbody = document.getElementById(tbodyId);
+            const emptyMsg = document.getElementById(emptyId);
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                data.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-100">
+                            <td class="py-2 text-gray-700">${item.productFamily}</td>
+                            <td class="py-2 text-right font-medium">${formatCurrency(item.amount)}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        // --- Storage Logic ---
+        function loadCachedData2025() {
+            try {
+                const cached = localStorage.getItem(STORAGE_KEY_2025);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (parsed.data && parsed.filename) {
+                        state.data2025 = parsed.data;
+                        document.getElementById('filename-2025').textContent = parsed.filename + " (歷史存檔)";
+                        document.getElementById('file-info-2025').classList.remove('hidden');
+                        document.getElementById('storage-indicator-2025').classList.remove('hidden');
+                        document.getElementById('icon-2025').classList.remove('text-gray-400');
+                        document.getElementById('icon-2025').classList.add('text-green-500');
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function saveCachedData2025(data, filename) {
+            try {
+                localStorage.setItem(STORAGE_KEY_2025, JSON.stringify({ data, filename, timestamp: Date.now() }));
+                document.getElementById('storage-indicator-2025').classList.remove('hidden');
+            } catch (e) { alert("檔案過大無法快取，但本次操作可正常進行。"); }
+        }
+
+        function clearStorage2025() {
+            if(confirm("確定清除快取？")) {
+                localStorage.removeItem(STORAGE_KEY_2025);
+                state.data2025 = [];
+                document.getElementById('file-info-2025').classList.add('hidden');
+                document.getElementById('storage-indicator-2025').classList.add('hidden');
+                document.getElementById('icon-2025').classList.remove('text-green-500');
+                document.getElementById('file-2025').value = ''; 
+            }
+        }
+
+        // --- Gemini API Call ---
+        async function callGemini(prompt) {
+            const userKey = document.getElementById('api-key-input').value;
+            const finalKey = userKey || apiKey;
+
+            if (!finalKey) {
+                alert("請輸入 API Key。");
+                return null;
+            }
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${finalKey}`;
+            
+            const makeRequest = async (retryCount = 0) => {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    if (!response.ok) throw new Error((await response.json()).error?.message || response.statusText);
+                    return (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (error) {
+                    if (error.message.includes("wait") && retryCount < 3) {
+                         await new Promise(r => setTimeout(r, Math.pow(2, retryCount) * 1000));
+                         return makeRequest(retryCount + 1);
+                    }
+                    throw error;
+                }
+            };
+
+            try { return await makeRequest(); } 
+            catch (error) { alert("AI Error: " + error.message); return null; }
+        }
+
+        // --- AI Features ---
+        async function generateDashboardInsight() {
+            if (state.current2026.length === 0) { alert("請先上傳資料。"); return; }
+            document.getElementById('ai-insight-loading').classList.remove('hidden');
+            document.getElementById('ai-insight-result').classList.add('hidden');
+
+            const totalSales = document.getElementById('kpi-total-sales').textContent;
+            const sbuStats = {};
+            state.current2026.forEach(i => { sbuStats[i.sbu] = (sbuStats[i.sbu] || 0) + i.amount; });
+            const sbuSummary = Object.entries(sbuStats).map(([k,v]) => `${k}: ${formatCurrency(v)}`).join(', ');
+            
+            const prompt = `分析報告: 2026 YTD 總業績 ${totalSales}。SBU分佈: ${sbuSummary}。請提供繁體中文的整體點評、3個關鍵洞察與1個策略建議。`;
+            const text = await callGemini(prompt);
+            
+            document.getElementById('ai-insight-loading').classList.add('hidden');
+            if (text) {
+                document.getElementById('ai-insight-result').innerHTML = marked.parse(text);
+                document.getElementById('ai-insight-result').classList.remove('hidden');
+            }
+        }
+
+        async function generateSalesPitch() {
+            const selectedCusts = Array.from(state.selectedCustomers);
+            if (selectedCusts.length === 0) { alert("請先選擇客戶。"); return; }
+
+            document.getElementById('ai-pitch-loading').classList.remove('hidden');
+            document.getElementById('ai-pitch-result').classList.add('hidden');
+
+            const custData = state.current2026.filter(i => state.selectedCustomers.has(i.customer));
+            const ownedProducts = [...new Set(custData.map(i => i.productFamily))];
+            
+            // White Space
+            const allProductCounts = {};
+            state.current2026.forEach(i => { allProductCounts[i.productFamily] = (allProductCounts[i.productFamily] || 0) + 1; });
+            const missingProducts = Object.keys(allProductCounts)
+                .filter(p => !ownedProducts.includes(p))
+                .sort((a,b) => allProductCounts[b] - allProductCounts[a])
+                .slice(0, 3);
+
+            let promptContext = "";
+            if(selectedCusts.length === 1) {
+                promptContext = `客戶: ${selectedCusts[0]}`;
+            } else {
+                promptContext = `客戶群體 (共 ${selectedCusts.length} 位)，包含: ${selectedCusts.slice(0, 5).join(', ')}...`;
+            }
+
+            const prompt = `
+                ${promptContext}
+                已購買產品: ${ownedProducts.slice(0, 10).join(', ')}...
+                空白區熱門產品: ${missingProducts.join(', ')}
+                
+                請針對此客戶/群體撰寫一段 B2B 銷售攻略(Sales Pitch)。
+                如果這是群體，請強調綜合效益或針對共同痛點。
+                針對第一項空白區產品撰寫話術。使用繁體中文。
+            `;
+
+            const text = await callGemini(prompt);
+            document.getElementById('ai-pitch-loading').classList.add('hidden');
+            if (text) {
+                document.getElementById('ai-pitch-result').innerHTML = marked.parse(text);
+                document.getElementById('ai-pitch-result').classList.remove('hidden');
+            }
+        }
+
+        // --- Data Processing (Universal) ---
+        function mapSBU(rawSbu) {
+            if (!rawSbu) return "Unknown";
+            const upper = rawSbu.toString().toUpperCase();
+            if (upper.includes("BOOKS") || upper.includes("INFORMATION SOLUTIONS")) return "ProQuest";
+            if (upper.includes("R&A")) return "R&A";
+            if (upper.includes("EX LIBRIS") || upper.includes("INNOVATIVE")) return "Software";
+            return rawSbu;
+        }
+
+        function normalizeData(rawRows) {
+            return rawRows.map((row, index) => {
+                let uniqueId = row['Id'] || `${row['ShipToCustomerName']}-${row['ProductFamily']}-${row['ContractLineId'] || index}`;
+                return {
+                    id: uniqueId,
+                    customer: row['ShipToCustomerName'] || "Unknown Customer",
+                    amount: Number(row['NetAnnualSalesValueCfx']) || 0,
+                    type: row['OrderClassification'] || "N/A",
+                    rawSbu: row['Sbu'],
+                    sbu: mapSBU(row['Sbu']),
+                    productFamily: row['ProductFamily'] || "Unspecified",
+                    originalRow: row
+                };
+            }).filter(item => item.customer !== "Unknown Customer" || item.amount !== 0);
+        }
+
+        function parseFile(file, callback) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext === 'csv') {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true, dynamicTyping: true,
+                    complete: (results) => callback(normalizeData(results.data)),
+                    error: (err) => alert("CSV Parse Error: " + err.message)
+                });
+            } else if (['xls', 'xlsx'].includes(ext)) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                        callback(normalizeData(data));
+                    } catch (err) { alert("Excel Parse Error: " + err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            } else { alert("Unsupported file."); }
+        }
+
+        function handleFileSelect(event, year) {
+            const file = event.target.files[0];
+            if (!file) return;
+            document.getElementById(`filename-${year}`).textContent = file.name;
+            document.getElementById(`file-info-${year}`).classList.remove('hidden');
+            
+            parseFile(file, (data) => {
+                if (year === '2025') {
+                    state.data2025 = data;
+                    saveCachedData2025(data, file.name);
+                    document.getElementById('icon-2025').classList.add('text-green-500');
+                } else if (year === '2026') {
+                    if (state.current2026.length > 0) {
+                        state.previous2026 = [...state.current2026];
+                        state.hasComparison = true;
+                        document.getElementById('diff-badge').classList.remove('hidden');
+                        alert("新資料已載入，將與上一版進行比對。");
+                    }
+                    state.current2026 = data;
+                    state.selectedCustomers.clear(); // Clear selection on new load
+                    data.forEach(item => state.allProductFamilies.add(item.productFamily));
+                    updateDashboard();
+                    updateCustomerDropdown();
+                    if (state.hasComparison) runComparison();
+                    document.getElementById('status-indicator').textContent = "資料已就緒 (2026)";
+                    document.getElementById('status-indicator').className = "font-bold text-green-600";
+                    switchTab('dashboard');
+                }
+            });
+        }
+
+        // --- Dashboard & Comparison (Same as before) ---
+        function updateDashboard() {
+            const data = state.current2026;
+            if (data.length === 0) return;
+            const totalSales = data.reduce((acc, i) => acc + i.amount, 0);
+            document.getElementById('kpi-total-sales').textContent = formatCurrency(totalSales);
+            document.getElementById('kpi-total-orders').textContent = data.length.toLocaleString();
+            document.getElementById('kpi-active-customers').textContent = new Set(data.map(i => i.customer)).size.toLocaleString();
+
+            const typeStats = {};
+            data.forEach(i => { typeStats[i.type] = (typeStats[i.type] || 0) + i.amount; });
+            const typeTbody = document.getElementById('table-classification-body');
+            typeTbody.innerHTML = '';
+            Object.entries(typeStats).sort(([,a], [,b]) => b - a).forEach(([type, amt]) => {
+                typeTbody.innerHTML += `<tr><td class="table-cell font-medium">${type}</td><td class="table-cell text-right">${formatCurrency(amt)}</td><td class="table-cell text-right text-gray-500">${formatPercent(amt / totalSales)}</td></tr>`;
+            });
+
+            const sbuStats = { "ProQuest": 0, "R&A": 0, "Software": 0, "Other": 0 };
+            data.forEach(i => { if (sbuStats[i.sbu] !== undefined) sbuStats[i.sbu] += i.amount; else sbuStats["Other"] += i.amount; });
+            const ctx = document.getElementById('sbuPieChart').getContext('2d');
+            if (state.chartInstance) state.chartInstance.destroy();
+            state.chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels: Object.keys(sbuStats), datasets: [{ data: Object.values(sbuStats), backgroundColor: ['#ec4899', '#6366f1', '#06b6d4', '#9ca3af'], borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            const top20Body = document.getElementById('table-top20-body');
+            top20Body.innerHTML = '';
+            [...data].sort((a, b) => b.amount - a.amount).slice(0, 20).forEach((item, idx) => {
+                top20Body.innerHTML += `<tr class="hover:bg-gray-50"><td class="table-cell text-gray-500">#${idx + 1}</td><td class="table-cell font-semibold text-gray-800">${item.customer.substring(0,20)}...</td><td class="table-cell text-right text-green-600 font-bold">${formatCurrency(item.amount)}</td><td class="table-cell text-xs">${item.productFamily}</td><td class="table-cell text-xs">${item.sbu}</td><td class="table-cell text-xs">${item.type}</td></tr>`;
+            });
+        }
+
+        function runComparison() {
+            const currentMap = new Map(state.current2026.map(i => [i.id, i]));
+            const prevMap = new Map(state.previous2026.map(i => [i.id, i]));
+            const added = [], changed = [], deleted = [];
+
+            state.current2026.forEach(curr => {
+                const prev = prevMap.get(curr.id);
+                if (!prev) added.push(curr);
+                else {
+                    if (Math.abs(curr.amount - prev.amount) > 0.01) changed.push({ current: curr, previous: prev });
+                    prevMap.delete(curr.id);
+                }
+            });
+            prevMap.forEach(i => deleted.push(i));
+
+            document.getElementById('no-comparison-msg').classList.add('hidden');
+            document.getElementById('comparison-content').classList.remove('hidden');
+            renderDiffTable('table-added-body', added, 'added');
+            renderDiffTable('table-deleted-body', deleted, 'deleted');
+            renderDiffTable('table-changed-body', changed, 'changed');
+            document.getElementById('badge-added').textContent = added.length;
+            document.getElementById('badge-deleted').textContent = deleted.length;
+            document.getElementById('badge-changed').textContent = changed.length;
+        }
+
+        function renderDiffTable(elementId, items, type) {
+            const tbody = document.getElementById(elementId);
+            tbody.innerHTML = '';
+            if (items.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-400 text-xs">無資料</td></tr>'; return; }
+            items.forEach(item => {
+                let html = '';
+                if (type === 'added') html = `<tr><td class="table-cell text-xs">${item.customer}</td><td class="table-cell text-xs">${item.productFamily}</td><td class="table-cell text-right font-medium text-green-600">${formatCurrency(item.amount)}</td></tr>`;
+                else if (type === 'deleted') html = `<tr><td class="table-cell text-xs">${item.customer}</td><td class="table-cell text-xs">${item.productFamily}</td><td class="table-cell text-right font-medium text-red-600">${formatCurrency(item.amount)}</td></tr>`;
+                else if (type === 'changed') html = `<tr><td class="table-cell text-xs">${item.current.customer}</td><td class="table-cell text-xs">${item.current.productFamily}</td><td class="table-cell text-right text-gray-500">${formatCurrency(item.previous.amount)}</td><td class="table-cell text-right font-bold">${formatCurrency(item.current.amount)}</td><td class="table-cell text-right">${item.current.amount > item.previous.amount ? '↑' : '↓'} ${formatCurrency(item.current.amount - item.previous.amount)}</td></tr>`;
+                tbody.innerHTML += html;
+            });
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active', 'bg-gray-800', 'border-l-4', 'border-blue-500'));
+            document.getElementById('nav-' + tabId).classList.add('active');
+            document.querySelectorAll('#content-area > div').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-' + tabId).classList.remove('hidden');
+            document.getElementById('page-title').textContent = { 'upload': '資料上傳', 'dashboard': '綜合分析儀表板', 'comparison': '主資料差異分析', 'customer': '特定客戶分析' }[tabId];
+        }
+
+        switchTab('upload');
+    </script>
+</body>
+</html>
