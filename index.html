@@ -169,11 +169,11 @@
                 <div class="card bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 mb-6">
                     <div class="flex justify-between items-start">
                         <div>
-                            <h3 class="text-lg font-bold text-indigo-800"><i class="fas fa-robot mr-2"></i>AI 業績顧問</h3>
-                            <p class="text-sm text-indigo-600 mt-1">點擊按鈕，讓 Gemini AI 為您分析當前業績狀況並提供策略建議。</p>
+                            <h3 class="text-lg font-bold text-indigo-800"><i class="fas fa-robot mr-2"></i>AI 個人業績教練</h3>
+                            <p class="text-sm text-indigo-600 mt-1">點擊按鈕，讓 Gemini AI 根據您個人的銷售狀況與業績目標，為您量身打造下一步策略。</p>
                         </div>
                         <button onclick="generateDashboardInsight()" class="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center">
-                            <i class="fas fa-magic mr-2"></i> ✨ 生成智慧洞察
+                            <i class="fas fa-magic mr-2"></i> ✨ 生成專屬策略
                         </button>
                     </div>
                     <div id="ai-insight-result" class="hidden mt-4 pt-4 border-t border-indigo-200 prose max-w-none text-sm text-gray-700">
@@ -562,7 +562,7 @@
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                             <div>
                                 <h3 class="text-lg font-bold"><i class="fas fa-lightbulb text-yellow-400 mr-2"></i>群體產品空白區 (White Space)</h3>
-                                <p class="text-sm text-gray-400">以下是該客戶群體<span class="text-yellow-300 font-bold">完全尚未購買</span>，但市場熱門的產品：</p>
+                                <p class="text-sm text-gray-400">以下是該客戶群體<span class="text-yellow-300 font-bold">完全尚未購買</span>，但同類型客戶熱門的產品：</p>
                             </div>
                         </div>
 
@@ -572,11 +572,11 @@
                         
                         <!-- AI Prompt Input -->
                         <div class="border-t border-gray-600 pt-4 mt-2">
-                            <label class="block text-sm text-gray-300 mb-2"><i class="fas fa-comment-dots mr-1"></i>給 AI 的特殊指示 (選填)</label>
+                            <label class="block text-sm text-gray-300 mb-2"><i class="fas fa-comment-dots mr-1"></i>給 AI 的特殊分析指示 (選填)</label>
                             <div class="flex gap-2">
-                                <input type="text" id="ai-custom-prompt" placeholder="例如：請針對醫學機構寫一段幽默的推銷話術..." class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 placeholder-gray-400">
+                                <input type="text" id="ai-custom-prompt" placeholder="例如：這是一間醫學大學，請針對其研究需求給予擴展資源的建議..." class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 placeholder-gray-400">
                                 <button onclick="generateSalesPitch()" class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-gray-900 font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center text-sm whitespace-nowrap">
-                                    <i class="fas fa-comment-dollar mr-2"></i> ✨ 生成群體策略
+                                    <i class="fas fa-crosshairs mr-2"></i> ✨ 生成業務戰略分析
                                 </button>
                             </div>
                         </div>
@@ -1001,7 +1001,7 @@
                 alert("請輸入 API Key。");
                 return null;
             }
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${finalKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${finalKey}`;
             
             const makeRequest = async (retryCount = 0) => {
                 try {
@@ -1039,7 +1039,31 @@
             dashData.forEach(i => { sbuStats[i.sbu] = (sbuStats[i.sbu] || 0) + i.amount; });
             const sbuSummary = Object.entries(sbuStats).map(([k,v]) => `${k}: ${formatCurrency(v)}`).join(', ');
             
-            const prompt = `分析報告: 2026 YTD 過濾後總業績 ${totalSales}。SBU分佈: ${sbuSummary}。請提供繁體中文的整體點評、3個關鍵洞察與1個策略建議。`;
+            // 抓取業績達成狀況的最新資料
+            const perfTotalAchieved = document.getElementById('perf-total-achieved').textContent;
+            const achTotalSub = document.getElementById('ach-total-sub').textContent;
+            const achPqSub = document.getElementById('ach-pq-sub').textContent;
+            const achNewSub = document.getElementById('ach-new-sub').textContent;
+
+            const prompt = `
+                你是一位專屬的 AI 業務輔導教練。請根據以下數據，為「業務員本人」生成一份專屬的繁體中文分析與建議報告：
+
+                【目前業績達成狀況】
+                - 總加權達成率: ${perfTotalAchieved}
+                - Total Sub 達成率: ${achTotalSub}
+                - PQ Sub 達成率: ${achPqSub}
+                - New Sub & 1X 達成率: ${achNewSub}
+
+                【2026 YTD 銷售數據】
+                - 總業績: ${totalSales}
+                - SBU分佈: ${sbuSummary}
+
+                請提供：
+                1. **個人業績點評**：針對目前的達成率與銷售狀況給予一句話的總結與鼓勵。
+                2. **3個關鍵洞察 (Key Insights)**：從產品組合或達成率中發現的優勢或隱憂。
+                3. **下一步行動建議**：身為業務，接下來應該把時間精力投資在哪裡（例如：依據目前哪一項達成率較低來制定衝刺策略）以最大化獎金與達成率。
+            `;
+
             const text = await callGemini(prompt);
             
             document.getElementById('ai-insight-loading').classList.add('hidden');
@@ -1071,29 +1095,34 @@
             const missingProducts = Object.keys(allProductCounts)
                 .filter(p => !ownedProducts.includes(p))
                 .sort((a,b) => allProductCounts[b] - allProductCounts[a])
-                .slice(0, 3);
+                .slice(0, 5); // 取出前五大空白產品供 AI 參考
 
             let promptContext = "";
             if(selectedCusts.length === 1) {
-                promptContext = `客戶: ${selectedCusts[0]}`;
+                promptContext = `目標客戶: ${selectedCusts[0]}`;
             } else {
-                promptContext = `客戶群體 (共 ${selectedCusts.length} 位)，包含: ${selectedCusts.slice(0, 5).join(', ')}...`;
+                promptContext = `目標客戶群體 (共 ${selectedCusts.length} 間機構)，包含: ${selectedCusts.slice(0, 5).join(', ')}...`;
             }
 
             const userCustomPrompt = document.getElementById('ai-custom-prompt').value.trim();
 
             let prompt = `
-                ${promptContext}
-                已購買產品: ${ownedProducts.slice(0, 10).join(', ')}...
-                空白區熱門產品: ${missingProducts.join(', ')}
-                
-                請針對此客戶/群體撰寫一段 B2B 銷售攻略(Sales Pitch)。
-                如果這是群體，請強調綜合效益或針對共同痛點。
-                針對第一項空白區產品撰寫話術。使用繁體中文。
+                你是一位專屬的 AI 業務戰略分析師。請為「業務員本人」撰寫一份針對以下學術機構客戶的【深度銷售策略分析報告】，這不是給客戶的信，而是業務內部的攻略。
+
+                【客戶背景資訊】
+                - ${promptContext}
+                - 該客戶目前已持有的電子資源/產品: ${ownedProducts.slice(0, 15).join(', ')}...
+                - 根據其他同類型學術機構的購買數據，該客戶尚未購買的市場熱門資源 (產品空白區): ${missingProducts.join(', ')}
+
+                【任務要求】
+                1. **現況深度分析**：分析客戶目前的產品持有情況，推測該學術機構目前的發展重點或可能遇到的瓶頸。
+                2. **切入點建議**：身為業務，應該如何利用他們「已經購買的資源」作為橋樑，去說服他們購買「尚未購買的熱門資源 (空白區)」？請以學術機構（如圖書館、研究處、系所）的需求（如：提升研究產出、支持數位轉型、完善特定學科館藏等）來切入。若為群體客戶，請強調該群體可共同適用的切入點。
+                3. **行動方針**：給業務具體的下一步聯絡或提案建議。
+                4. 請使用專業的繁體中文撰寫。
             `;
 
             if (userCustomPrompt) {
-                prompt += `\n\n使用者特別指示 (請務必遵守)：${userCustomPrompt}`;
+                prompt += `\n\n【業務特別指示】 (請務必在分析中融入此指示)：${userCustomPrompt}`;
             }
 
             const text = await callGemini(prompt);
@@ -1407,4 +1436,3 @@
     </script>
 </body>
 </html>
-
