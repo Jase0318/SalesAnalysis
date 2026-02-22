@@ -1001,7 +1001,7 @@
                 alert("請輸入 API Key。");
                 return null;
             }
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${finalKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${finalKey}`;
             
             const makeRequest = async (retryCount = 0) => {
                 try {
@@ -1407,3 +1407,4 @@
     </script>
 </body>
 </html>
+
