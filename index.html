@@ -71,13 +71,17 @@
                 <i class="fas fa-user-tie w-6"></i>
                 <span class="font-medium">特定客戶分析</span>
             </div>
+            <div onclick="switchTab('performance')" id="nav-performance" class="sidebar-item px-6 py-4 flex items-center">
+                <i class="fas fa-bullseye w-6"></i>
+                <span class="font-medium">業績達成分析</span>
+            </div>
         </nav>
 
         <!-- API Key Input -->
         <div class="p-4 border-t border-gray-700">
             <label class="text-xs text-gray-400 block mb-1">Gemini API Key (選填)</label>
-            <input type="password" id="api-key-input" placeholder="Enter API Key" class="w-full px-2 py-1 text-xs text-gray-900 bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <div class="text-[10px] text-gray-500 mt-1">若環境未提供，請在此輸入</div>
+            <input type="password" id="api-key-input" placeholder="Enter API Key" onchange="saveApiKey()" class="w-full px-2 py-1 text-xs text-gray-900 bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="text-[10px] text-gray-500 mt-1">若環境未提供，請在此輸入。系統將自動儲存供下次使用。</div>
         </div>
 
         <div class="p-4 text-xs text-gray-400 text-center">
@@ -133,7 +137,7 @@
                     <!-- 2026 Upload -->
                     <div class="card border-l-4 border-blue-500">
                         <h3 class="text-lg font-bold text-gray-700 mb-4">上傳 2026 Year to Date 資料 (分析用)</h3>
-                        <p class="text-sm text-gray-500 mb-4">此處上傳的資料將用於「儀表板」與「客戶分析」。</p>
+                        <p class="text-sm text-gray-500 mb-4">此處上傳的資料將用於「儀表板」、「業績分析」與「客戶分析」。</p>
                         <div class="flex items-center justify-center w-full">
                             <label for="file-2026" class="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors">
                                 <div class="flex flex-col items-center justify-center pt-5 pb-6">
@@ -154,7 +158,7 @@
                     <h4 class="font-bold mb-2"><i class="fas fa-info-circle"></i> 系統說明</h4>
                     <ul class="list-disc list-inside space-y-1">
                         <li>系統支援 CSV、Excel (.xlsx, .xls) 格式。</li>
-                        <li><strong>主資料比對邏輯：</strong>系統優先使用 <code>TrxId</code> (Excel "BY" 欄) 作為唯一識別碼 (Unique Key) 來判斷新增、刪除或修改。若無此欄位，則嘗試使用 Id 或其他欄位組合。</li>
+                        <li><strong>主資料比對邏輯：</strong>系統優先使用 <code>TrxId</code> (Excel "BY" 欄) 作為唯一識別碼來判斷新增、刪除或修改。</li>
                     </ul>
                 </div>
             </div>
@@ -185,7 +189,7 @@
                     <div class="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                         <div class="text-blue-100 text-sm font-medium uppercase">2026 總銷售額 (YTD)</div>
                         <div class="text-3xl font-bold mt-2" id="kpi-total-sales">$0</div>
-                        <div class="text-xs mt-2 text-blue-200">基於最新上傳資料</div>
+                        <div class="text-xs mt-2 text-blue-200">基於過濾後資料</div>
                     </div>
                     <div class="card bg-white border-l-4 border-green-500">
                         <div class="text-gray-500 text-sm font-medium uppercase">訂單總數</div>
@@ -200,7 +204,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Order Classification Table -->
                     <div class="card">
-                        <h3 class="text-lg font-bold text-gray-700 mb-4">業績類型分析 (Order Classification)</h3>
+                        <h3 class="text-lg font-bold text-gray-700 mb-4">業績達成項目分析</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
@@ -245,6 +249,73 @@
                                 <!-- Dynamic Data -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: PERFORMANCE -->
+            <div id="view-performance" class="hidden space-y-6 fade-in">
+                <div class="card border-l-4 border-purple-500">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800">業績達成分析 (Performance Achievement)</h3>
+                        <div class="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-bold shadow-sm">
+                            總加權達成率: <span id="perf-total-achieved" class="text-xl ml-1">0%</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-6">請於下方輸入您的目標金額，系統將自動計算達成率（儲存於瀏覽器）。</p>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-sm font-bold text-gray-700 uppercase">評量項目</th>
+                                    <th class="px-6 py-4 text-center text-sm font-bold text-gray-700 uppercase">業績比例 (加權)</th>
+                                    <th class="px-6 py-4 text-right text-sm font-bold text-gray-700 uppercase">目標金額 (User Input)</th>
+                                    <th class="px-6 py-4 text-right text-sm font-bold text-gray-700 uppercase">實際金額 (Actual)</th>
+                                    <th class="px-6 py-4 text-right text-sm font-bold text-gray-700 uppercase">單項達成率</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <!-- Row 1: Total Sub -->
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Total Sub</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">60%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                                        $ <input type="number" id="tgt-total-sub" onchange="savePerformanceTargets()" class="w-32 px-2 py-1 border border-gray-300 rounded focus:ring-purple-500 focus:border-purple-500 text-right" value="0">
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600" id="act-total-sub">$0</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-purple-600" id="ach-total-sub">0%</td>
+                                </tr>
+                                <!-- Row 2: PQ Sub -->
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">PQ Sub</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">20%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                                        $ <input type="number" id="tgt-pq-sub" onchange="savePerformanceTargets()" class="w-32 px-2 py-1 border border-gray-300 rounded focus:ring-purple-500 focus:border-purple-500 text-right" value="0">
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600" id="act-pq-sub">$0</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-purple-600" id="ach-pq-sub">0%</td>
+                                </tr>
+                                <!-- Row 3: New Sub & 1X -->
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">New Sub & 1X</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">20%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                                        $ <input type="number" id="tgt-new-sub" onchange="savePerformanceTargets()" class="w-32 px-2 py-1 border border-gray-300 rounded focus:ring-purple-500 focus:border-purple-500 text-right" value="0">
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600" id="act-new-sub">$0</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-purple-600" id="ach-new-sub">0%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                        <strong>邏輯定義說明：</strong><br>
+                        - <strong>Total Sub:</strong> <code>OrderClassification = "SUB"</code> 的所有業績。<br>
+                        - <strong>PQ Sub:</strong> <code>OrderClassification = "SUB"</code> 且 <code>SBU = "ProQuest"</code> 的業績。<br>
+                        - <strong>New Sub & 1X:</strong> 符合以下任一條件之加總：<br>
+                           &nbsp;&nbsp;1. <code>OrderType = "N"</code> 且 <code>OrderClassification = "SUB"</code> 且歸屬於 R&A 或 Ex Libris 或 Innovative。<br>
+                           &nbsp;&nbsp;2. <code>SBU = "R&A"</code> 且 <code>OrderType = "1X"</code>。
                     </div>
                 </div>
             </div>
@@ -389,6 +460,14 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Filter for OrderType = N -->
+                    <div class="mt-4">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="cust-filter-new" onchange="analyzeCustomer()" class="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded transition duration-150 ease-in-out">
+                            <span class="ml-2 text-sm text-gray-700 font-semibold bg-yellow-100 px-2 py-0.5 rounded">加入 2026 年新訂單 (OrderType = N) 進行綜合分析</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div id="customer-analysis-content" class="hidden space-y-6 mt-6">
@@ -439,6 +518,45 @@
                         </div>
                     </div>
 
+                    <!-- 2026 New Purchases Section -->
+                    <div id="new-purchases-container" class="card border-t-4 border-green-500 hidden">
+                        <h4 class="font-bold text-green-700 mb-3"><i class="fas fa-star text-yellow-400 mr-2"></i>2026 年新購產品清單 (OrderType = N)</h4>
+                        <div class="overflow-y-auto max-h-60">
+                            <table class="w-full text-sm">
+                                <thead class="bg-green-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-gray-600 font-semibold">產品家族</th>
+                                        <th class="px-4 py-2 text-left text-gray-600 font-semibold">SBU</th>
+                                        <th class="px-4 py-2 text-right text-gray-600 font-semibold">銷售金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="new-purchases-body" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap Section -->
+                    <div class="card border-t-4 border-orange-500">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-fire text-orange-500 mr-2"></i>客戶產品購買熱點圖 (Purchase Heatmap)</h3>
+                            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">顏色越深代表購買金額越高</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <h4 class="text-sm font-bold text-indigo-700 mb-3 border-b-2 border-indigo-100 pb-1">R&A 熱區</h4>
+                                <div id="heatmap-ra" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-pink-700 mb-3 border-b-2 border-pink-100 pb-1">ProQuest 熱區</h4>
+                                <div id="heatmap-pq" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-cyan-700 mb-3 border-b-2 border-cyan-100 pb-1">Software 熱區</h4>
+                                <div id="heatmap-sw" class="flex flex-wrap gap-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- White Space Analysis & AI Pitch -->
                     <div class="card bg-gray-800 text-white">
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
@@ -446,17 +564,25 @@
                                 <h3 class="text-lg font-bold"><i class="fas fa-lightbulb text-yellow-400 mr-2"></i>群體產品空白區 (White Space)</h3>
                                 <p class="text-sm text-gray-400">以下是該客戶群體<span class="text-yellow-300 font-bold">完全尚未購買</span>，但市場熱門的產品：</p>
                             </div>
-                            <button onclick="generateSalesPitch()" class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-gray-900 font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center text-sm whitespace-nowrap">
-                                <i class="fas fa-comment-dollar mr-2"></i> ✨ 生成群體策略
-                            </button>
                         </div>
 
                         <div id="white-space-container" class="flex flex-wrap gap-2 mb-6">
                             <!-- Tags go here -->
                         </div>
+                        
+                        <!-- AI Prompt Input -->
+                        <div class="border-t border-gray-600 pt-4 mt-2">
+                            <label class="block text-sm text-gray-300 mb-2"><i class="fas fa-comment-dots mr-1"></i>給 AI 的特殊指示 (選填)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="ai-custom-prompt" placeholder="例如：請針對醫學機構寫一段幽默的推銷話術..." class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 placeholder-gray-400">
+                                <button onclick="generateSalesPitch()" class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-gray-900 font-bold py-2 px-4 rounded shadow-md transform transition hover:scale-105 flex items-center text-sm whitespace-nowrap">
+                                    <i class="fas fa-comment-dollar mr-2"></i> ✨ 生成群體策略
+                                </button>
+                            </div>
+                        </div>
 
                         <!-- AI Pitch Result -->
-                        <div id="ai-pitch-result" class="hidden bg-gray-700 rounded p-4 border border-gray-600 prose prose-invert max-w-none text-sm">
+                        <div id="ai-pitch-result" class="hidden mt-4 bg-gray-700 rounded p-4 border border-gray-600 prose prose-invert max-w-none text-sm">
                             <!-- AI content goes here -->
                         </div>
                          <div id="ai-pitch-loading" class="hidden mt-4 flex justify-center">
@@ -475,6 +601,8 @@
 
         // --- Constants ---
         const STORAGE_KEY_2025 = 'sales_analysis_data_2025';
+        const STORAGE_KEY_TARGETS = 'sales_performance_targets';
+        const STORAGE_KEY_API = 'gemini_api_key_stored';
 
         // --- Global State ---
         const state = {
@@ -501,6 +629,10 @@
         // --- Initialization ---
         window.onload = function() {
             loadCachedData2025();
+            loadPerformanceTargets(); // Load targets
+            loadApiKey(); // 載入儲存的 API Key
+            
+            updateCustomerDropdown();
             
             // Close dropdown when clicking outside
             document.addEventListener('click', function(event) {
@@ -511,6 +643,45 @@
                 }
             });
         };
+
+        // --- Target Storage Logic ---
+        function loadPerformanceTargets() {
+            try {
+                const tgts = JSON.parse(localStorage.getItem(STORAGE_KEY_TARGETS));
+                if (tgts) {
+                    document.getElementById('tgt-total-sub').value = tgts.totalSub || 0;
+                    document.getElementById('tgt-pq-sub').value = tgts.pqSub || 0;
+                    document.getElementById('tgt-new-sub').value = tgts.newSub1x || 0;
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function savePerformanceTargets() {
+            const targets = {
+                totalSub: Number(document.getElementById('tgt-total-sub').value) || 0,
+                pqSub: Number(document.getElementById('tgt-pq-sub').value) || 0,
+                newSub1x: Number(document.getElementById('tgt-new-sub').value) || 0
+            };
+            localStorage.setItem(STORAGE_KEY_TARGETS, JSON.stringify(targets));
+            updatePerformance(); // Recalculate upon save
+        }
+
+        // --- API Key Storage Logic ---
+        function loadApiKey() {
+            try {
+                const storedKey = localStorage.getItem(STORAGE_KEY_API);
+                if (storedKey) {
+                    document.getElementById('api-key-input').value = storedKey;
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function saveApiKey() {
+            try {
+                const key = document.getElementById('api-key-input').value.trim();
+                localStorage.setItem(STORAGE_KEY_API, key);
+            } catch(e) { console.error(e); }
+        }
 
         // --- Custom Dropdown Logic ---
         function toggleCustDropdown() {
@@ -525,7 +696,10 @@
             const container = document.getElementById('cust-list-container');
             container.innerHTML = '';
             
-            const customers = [...new Set(state.current2026.map(i => i.customer))].sort();
+            const allCusts = new Set();
+            state.data2025.forEach(i => allCusts.add(i.customer));
+            state.current2026.forEach(i => allCusts.add(i.customer));
+            const customers = [...allCusts].sort();
             
             if (customers.length === 0) {
                 container.innerHTML = '<div class="p-4 text-center text-gray-400 text-sm">無客戶資料</div>';
@@ -633,7 +807,13 @@
             }
             content.classList.remove('hidden');
 
-            const custData = state.current2026.filter(i => state.selectedCustomers.has(i.customer));
+            let custData = state.data2025.filter(i => state.selectedCustomers.has(i.customer));
+            const includeNew = document.getElementById('cust-filter-new').checked;
+            if (includeNew) {
+                const newOrders2026 = state.current2026.filter(i => state.selectedCustomers.has(i.customer) && i.orderType.toUpperCase() === 'N');
+                custData = custData.concat(newOrders2026);
+            }
+
             const groupTotal = custData.reduce((acc, i) => acc + i.amount, 0);
             document.getElementById('group-total-sales').textContent = formatCurrency(groupTotal);
 
@@ -647,18 +827,88 @@
                 return Object.entries(grouped).map(([fam, amt]) => ({ productFamily: fam, amount: amt })).sort((a,b) => b.amount - a.amount);
             };
 
-            renderCustomerSubTable('cust-ra-body', 'cust-ra-empty', aggregateBySbu('R&A'));
-            renderCustomerSubTable('cust-pq-body', 'cust-pq-empty', aggregateBySbu('ProQuest'));
-            renderCustomerSubTable('cust-sw-body', 'cust-sw-empty', aggregateBySbu('Software'));
+            const raData = aggregateBySbu('R&A');
+            const pqData = aggregateBySbu('ProQuest');
+            const swData = aggregateBySbu('Software');
 
-            const groupOwnedProducts = new Set(custData.map(i => i.productFamily));
+            renderCustomerSubTable('cust-ra-body', 'cust-ra-empty', raData);
+            renderCustomerSubTable('cust-pq-body', 'cust-pq-empty', pqData);
+            renderCustomerSubTable('cust-sw-body', 'cust-sw-empty', swData);
+
+            // 1. 處理 2026 新購產品清單 (若有勾選)
+            const newPurchasesContainer = document.getElementById('new-purchases-container');
+            const newPurchasesBody = document.getElementById('new-purchases-body');
+            if (includeNew) {
+                const newOrders2026 = state.current2026.filter(i => state.selectedCustomers.has(i.customer) && i.orderType.toUpperCase() === 'N');
+                if (newOrders2026.length > 0) {
+                    newPurchasesContainer.classList.remove('hidden');
+                    const newProdAgg = {};
+                    newOrders2026.forEach(i => {
+                        if(!newProdAgg[i.productFamily]) newProdAgg[i.productFamily] = { amount: 0, sbu: i.sbu };
+                        newProdAgg[i.productFamily].amount += i.amount;
+                    });
+                    newPurchasesBody.innerHTML = '';
+                    Object.entries(newProdAgg).sort((a,b)=>b[1].amount - a[1].amount).forEach(([prod, data]) => {
+                        newPurchasesBody.innerHTML += `<tr class="hover:bg-green-50 transition-colors"><td class="px-4 py-3 text-gray-700 font-medium">${prod}</td><td class="px-4 py-3 text-xs text-gray-500">${data.sbu}</td><td class="px-4 py-3 text-right font-bold text-green-600">${formatCurrency(data.amount)}</td></tr>`;
+                    });
+                } else {
+                    newPurchasesContainer.classList.add('hidden');
+                }
+            } else {
+                newPurchasesContainer.classList.add('hidden');
+            }
+
+            // 2. 繪製熱點圖 (Heatmap)
+            const renderHeatmap = (containerId, data, rgbColor) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                if (data.length === 0) {
+                    container.innerHTML = `<span class="text-xs text-gray-400 italic bg-gray-50 p-2 rounded w-full text-center border border-dashed border-gray-200">無購買紀錄</span>`;
+                    return;
+                }
+                const maxAmt = Math.max(...data.map(d => d.amount));
+                data.forEach(item => {
+                    const opacity = (0.15 + (item.amount / maxAmt) * 0.8).toFixed(2);
+                    const isDark = opacity > 0.55;
+                    const textColor = isDark ? 'text-white' : 'text-gray-800';
+                    const amtColor = isDark ? 'text-gray-200' : 'text-gray-600';
+                    
+                    container.innerHTML += `
+                        <div class="p-2.5 rounded border border-gray-200 text-xs shadow-sm flex flex-col justify-between transition-transform hover:scale-105 cursor-default" 
+                             style="background-color: rgba(${rgbColor}, ${opacity}); flex: 1 1 30%; min-width: 100px; min-height: 70px;" title="${item.productFamily}: ${formatCurrency(item.amount)}">
+                            <span class="font-bold ${textColor} mb-1 drop-shadow-sm line-clamp-2">${item.productFamily}</span>
+                            <span class="text-right font-bold ${amtColor}">${formatCurrency(item.amount)}</span>
+                        </div>
+                    `;
+                });
+            };
+            
+            renderHeatmap('heatmap-ra', raData, '79, 70, 229');   
+            renderHeatmap('heatmap-pq', pqData, '219, 39, 119');  
+            renderHeatmap('heatmap-sw', swData, '8, 145, 178');   
+
+            // 3. 分析空白區 (White space) : 結合 2025 與 2026 全域資料，依「銷售金額」及「購買頻次」計算市場熱門度
+            const allGlobalData = [...state.data2025, ...state.current2026];
+            const globalStats = {};
+            allGlobalData.forEach(i => {
+                if (!globalStats[i.productFamily]) globalStats[i.productFamily] = { amount: 0, count: 0 };
+                globalStats[i.productFamily].amount += i.amount;
+                globalStats[i.productFamily].count += 1;
+            });
+
+            // 取得客戶歷史所有買過的產品 (避免推薦2026已買過的非新單產品)
+            const fullCustData = allGlobalData.filter(i => state.selectedCustomers.has(i.customer));
+            const groupOwnedProducts = new Set(fullCustData.map(i => i.productFamily));
+            
             const whiteSpace = [...state.allProductFamilies].filter(p => !groupOwnedProducts.has(p));
             
-            const globalPop = {};
-            state.current2026.forEach(i => {
-                globalPop[i.productFamily] = (globalPop[i.productFamily] || 0) + 1;
+            // 排序邏輯：優先比對全域銷售金額，若金額相同則比對購買次數
+            whiteSpace.sort((a, b) => {
+                const statA = globalStats[a] || { amount: 0, count: 0 };
+                const statB = globalStats[b] || { amount: 0, count: 0 };
+                if (statB.amount !== statA.amount) return statB.amount - statA.amount;
+                return statB.count - statA.count;
             });
-            whiteSpace.sort((a, b) => (globalPop[b] || 0) - (globalPop[a] || 0));
 
             const wsContainer = document.getElementById('white-space-container');
             wsContainer.innerHTML = '';
@@ -711,6 +961,7 @@
                     const parsed = JSON.parse(cached);
                     if (parsed.data && parsed.filename) {
                         state.data2025 = parsed.data;
+                        state.data2025.forEach(item => state.allProductFamilies.add(item.productFamily));
                         document.getElementById('filename-2025').textContent = parsed.filename + " (歷史存檔)";
                         document.getElementById('file-info-2025').classList.remove('hidden');
                         document.getElementById('storage-indicator-2025').classList.remove('hidden');
@@ -744,6 +995,8 @@
             const userKey = document.getElementById('api-key-input').value;
             const finalKey = userKey || apiKey;
 
+            if (userKey) saveApiKey(); // 確保使用者輸入的 Key 被即時儲存
+
             if (!finalKey) {
                 alert("請輸入 API Key。");
                 return null;
@@ -774,16 +1027,19 @@
 
         // --- AI Features ---
         async function generateDashboardInsight() {
-            if (state.current2026.length === 0) { alert("請先上傳資料。"); return; }
+            // Dashboard filtering applies to insight as well
+            const dashData = state.current2026.filter(item => item.effectivePeriod.startsWith('2026') || item.effectiveDate.startsWith('2026'));
+            if (dashData.length === 0) { alert("無符合 2026 開頭的資料可供分析。"); return; }
+            
             document.getElementById('ai-insight-loading').classList.remove('hidden');
             document.getElementById('ai-insight-result').classList.add('hidden');
 
             const totalSales = document.getElementById('kpi-total-sales').textContent;
             const sbuStats = {};
-            state.current2026.forEach(i => { sbuStats[i.sbu] = (sbuStats[i.sbu] || 0) + i.amount; });
+            dashData.forEach(i => { sbuStats[i.sbu] = (sbuStats[i.sbu] || 0) + i.amount; });
             const sbuSummary = Object.entries(sbuStats).map(([k,v]) => `${k}: ${formatCurrency(v)}`).join(', ');
             
-            const prompt = `分析報告: 2026 YTD 總業績 ${totalSales}。SBU分佈: ${sbuSummary}。請提供繁體中文的整體點評、3個關鍵洞察與1個策略建議。`;
+            const prompt = `分析報告: 2026 YTD 過濾後總業績 ${totalSales}。SBU分佈: ${sbuSummary}。請提供繁體中文的整體點評、3個關鍵洞察與1個策略建議。`;
             const text = await callGemini(prompt);
             
             document.getElementById('ai-insight-loading').classList.add('hidden');
@@ -800,11 +1056,18 @@
             document.getElementById('ai-pitch-loading').classList.remove('hidden');
             document.getElementById('ai-pitch-result').classList.add('hidden');
 
-            const custData = state.current2026.filter(i => state.selectedCustomers.has(i.customer));
+            let custData = state.data2025.filter(i => state.selectedCustomers.has(i.customer));
+            const includeNew = document.getElementById('cust-filter-new').checked;
+            if (includeNew) {
+                const newOrders2026 = state.current2026.filter(i => state.selectedCustomers.has(i.customer) && i.orderType.toUpperCase() === 'N');
+                custData = custData.concat(newOrders2026);
+            }
+            
             const ownedProducts = [...new Set(custData.map(i => i.productFamily))];
             
             const allProductCounts = {};
-            state.current2026.forEach(i => { allProductCounts[i.productFamily] = (allProductCounts[i.productFamily] || 0) + 1; });
+            const popBaseData = state.data2025.length > 0 ? state.data2025 : state.current2026;
+            popBaseData.forEach(i => { allProductCounts[i.productFamily] = (allProductCounts[i.productFamily] || 0) + 1; });
             const missingProducts = Object.keys(allProductCounts)
                 .filter(p => !ownedProducts.includes(p))
                 .sort((a,b) => allProductCounts[b] - allProductCounts[a])
@@ -817,7 +1080,9 @@
                 promptContext = `客戶群體 (共 ${selectedCusts.length} 位)，包含: ${selectedCusts.slice(0, 5).join(', ')}...`;
             }
 
-            const prompt = `
+            const userCustomPrompt = document.getElementById('ai-custom-prompt').value.trim();
+
+            let prompt = `
                 ${promptContext}
                 已購買產品: ${ownedProducts.slice(0, 10).join(', ')}...
                 空白區熱門產品: ${missingProducts.join(', ')}
@@ -826,6 +1091,10 @@
                 如果這是群體，請強調綜合效益或針對共同痛點。
                 針對第一項空白區產品撰寫話術。使用繁體中文。
             `;
+
+            if (userCustomPrompt) {
+                prompt += `\n\n使用者特別指示 (請務必遵守)：${userCustomPrompt}`;
+            }
 
             const text = await callGemini(prompt);
             document.getElementById('ai-pitch-loading').classList.add('hidden');
@@ -847,10 +1116,7 @@
 
         function normalizeData(rawRows) {
             return rawRows.map((row, index) => {
-                // Modified to use TrxId as primary key as requested
                 let uniqueId = row['TrxId'];
-                
-                // Fallbacks if TrxId is missing
                 if (!uniqueId) uniqueId = row['Id']; 
                 if (!uniqueId) uniqueId = `${row['ShipToCustomerName']}-${row['ProductFamily']}-${row['ContractLineId'] || index}`;
 
@@ -859,9 +1125,13 @@
                     customer: row['ShipToCustomerName'] || "Unknown Customer",
                     amount: Number(row['NetAnnualSalesValueCfx']) || 0,
                     type: row['OrderClassification'] || "N/A",
-                    rawSbu: row['Sbu'],
+                    orderType: String(row['OrderType'] || ''),
+                    orderClassification: String(row['OrderClassification'] || ''),
+                    rawSbu: String(row['Sbu'] || ''),
                     sbu: mapSBU(row['Sbu']),
                     productFamily: row['ProductFamily'] || "Unspecified",
+                    effectivePeriod: String(row['EffectivePeriod'] || ''),
+                    effectiveDate: String(row['EffectiveDate'] || ''),
                     originalRow: row
                 };
             }).filter(item => item.customer !== "Unknown Customer" || item.amount !== 0);
@@ -897,14 +1167,18 @@
             parseFile(file, (data) => {
                 if (year === '2025') {
                     state.data2025 = data;
+                    state.data2025.forEach(item => state.allProductFamilies.add(item.productFamily));
                     saveCachedData2025(data, file.name);
                     document.getElementById('icon-2025').classList.add('text-green-500');
+                    updateCustomerDropdown();
+                    if(state.selectedCustomers.size > 0) analyzeCustomer();
                 } else if (year === '2026') {
                     state.current2026 = data;
                     state.selectedCustomers.clear(); 
                     data.forEach(item => state.allProductFamilies.add(item.productFamily));
                     updateDashboard();
                     updateCustomerDropdown();
+                    updatePerformance(); // Update performance tab with new data
                     document.getElementById('status-indicator').textContent = "資料已就緒 (2026)";
                     document.getElementById('status-indicator').className = "font-bold text-green-600";
                     switchTab('dashboard');
@@ -928,23 +1202,63 @@
 
         // --- Dashboard & Comparison Logic ---
         function updateDashboard() {
-            const data = state.current2026;
-            if (data.length === 0) return;
-            const totalSales = data.reduce((acc, i) => acc + i.amount, 0);
-            document.getElementById('kpi-total-sales').textContent = formatCurrency(totalSales);
-            document.getElementById('kpi-total-orders').textContent = data.length.toLocaleString();
-            document.getElementById('kpi-active-customers').textContent = new Set(data.map(i => i.customer)).size.toLocaleString();
+            // Apply filtering logic: Only use Effective date starting with 2026
+            const dashData = state.current2026.filter(item => item.effectivePeriod.startsWith('2026') || item.effectiveDate.startsWith('2026'));
+            
+            if (dashData.length === 0) {
+                 document.getElementById('kpi-total-sales').textContent = "$0";
+                 document.getElementById('kpi-total-orders').textContent = "0";
+                 document.getElementById('kpi-active-customers').textContent = "0";
+                 document.getElementById('table-classification-body').innerHTML = '';
+                 if (state.chartInstance) state.chartInstance.destroy();
+                 document.getElementById('table-top20-body').innerHTML = '';
+                 return;
+            }
 
-            const typeStats = {};
-            data.forEach(i => { typeStats[i.type] = (typeStats[i.type] || 0) + i.amount; });
+            const totalSales = dashData.reduce((acc, i) => acc + i.amount, 0);
+            document.getElementById('kpi-total-sales').textContent = formatCurrency(totalSales);
+            document.getElementById('kpi-total-orders').textContent = dashData.length.toLocaleString();
+            document.getElementById('kpi-active-customers').textContent = new Set(dashData.map(i => i.customer)).size.toLocaleString();
+
+            let actualTotalSub = 0;
+            let actualPqSub = 0;
+            let actualNewSub1x = 0;
+
+            dashData.forEach(item => {
+                const isSub = item.orderClassification.toUpperCase() === 'SUB';
+                const isN = item.orderType.toUpperCase() === 'N';
+                const is1X = item.orderType.toUpperCase() === '1X';
+                
+                // 1. Total Sub
+                if (isSub) actualTotalSub += item.amount;
+
+                // 2. PQ Sub
+                if (isSub && item.sbu === 'ProQuest') actualPqSub += item.amount;
+
+                // 3. New Sub & 1X
+                const isTargetSbuForNew = item.sbu === 'R&A' || item.rawSbu.toUpperCase().includes('EX LIBRIS') || item.rawSbu.toUpperCase().includes('INNOVATIVE');
+                const cond1 = isN && isSub && isTargetSbuForNew;
+                const cond2 = item.sbu === 'R&A' && is1X;
+
+                if (cond1 || cond2) {
+                    actualNewSub1x += item.amount;
+                }
+            });
+
+            const typeStats = {
+                "Total Sub": actualTotalSub,
+                "PQ Sub": actualPqSub,
+                "New Sub & 1X": actualNewSub1x
+            };
+
             const typeTbody = document.getElementById('table-classification-body');
             typeTbody.innerHTML = '';
             Object.entries(typeStats).sort(([,a], [,b]) => b - a).forEach(([type, amt]) => {
-                typeTbody.innerHTML += `<tr><td class="table-cell font-medium">${type}</td><td class="table-cell text-right">${formatCurrency(amt)}</td><td class="table-cell text-right text-gray-500">${formatPercent(amt / totalSales)}</td></tr>`;
+                typeTbody.innerHTML += `<tr><td class="table-cell font-medium">${type}</td><td class="table-cell text-right">${formatCurrency(amt)}</td><td class="table-cell text-right text-gray-500">${formatPercent(totalSales > 0 ? amt / totalSales : 0)}</td></tr>`;
             });
 
             const sbuStats = { "ProQuest": 0, "R&A": 0, "Software": 0, "Other": 0 };
-            data.forEach(i => { if (sbuStats[i.sbu] !== undefined) sbuStats[i.sbu] += i.amount; else sbuStats["Other"] += i.amount; });
+            dashData.forEach(i => { if (sbuStats[i.sbu] !== undefined) sbuStats[i.sbu] += i.amount; else sbuStats["Other"] += i.amount; });
             const ctx = document.getElementById('sbuPieChart').getContext('2d');
             if (state.chartInstance) state.chartInstance.destroy();
             state.chartInstance = new Chart(ctx, {
@@ -955,9 +1269,71 @@
 
             const top20Body = document.getElementById('table-top20-body');
             top20Body.innerHTML = '';
-            [...data].sort((a, b) => b.amount - a.amount).slice(0, 20).forEach((item, idx) => {
+            [...dashData].sort((a, b) => b.amount - a.amount).slice(0, 20).forEach((item, idx) => {
                 top20Body.innerHTML += `<tr class="hover:bg-gray-50"><td class="table-cell text-gray-500">#${idx + 1}</td><td class="table-cell font-semibold text-gray-800">${item.customer.substring(0,20)}...</td><td class="table-cell text-right text-green-600 font-bold">${formatCurrency(item.amount)}</td><td class="table-cell text-xs">${item.productFamily}</td><td class="table-cell text-xs">${item.sbu}</td><td class="table-cell text-xs">${item.type}</td></tr>`;
             });
+        }
+
+        // --- Performance Analysis Logic ---
+        function updatePerformance() {
+            let actualTotalSub = 0;
+            let actualPqSub = 0;
+            let actualNewSub1x = 0;
+
+            // 僅採用 EffectivePeriod 或 EffectiveDate 為 2026 開頭的紀錄
+            const perfData = state.current2026.filter(item => item.effectivePeriod.startsWith('2026') || item.effectiveDate.startsWith('2026'));
+
+            perfData.forEach(item => {
+                const isSub = item.orderClassification.toUpperCase() === 'SUB';
+                const isN = item.orderType.toUpperCase() === 'N';
+                const is1X = item.orderType.toUpperCase() === '1X';
+                
+                // 1. Total Sub
+                if (isSub) {
+                    actualTotalSub += item.amount;
+                }
+
+                // 2. PQ Sub
+                if (isSub && item.sbu === 'ProQuest') {
+                    actualPqSub += item.amount;
+                }
+
+                // 3. New Sub & 1X
+                // 條件 A: 屬於 R&A 或 Ex Libris 或 Innovative 的新單 (New Sub)
+                const isTargetSbuForNew = item.sbu === 'R&A' || item.rawSbu.toUpperCase().includes('EX LIBRIS') || item.rawSbu.toUpperCase().includes('INNOVATIVE');
+                const cond1 = isN && isSub && isTargetSbuForNew;
+                
+                // 條件 B: R&A 中的 1X
+                const cond2 = item.sbu === 'R&A' && is1X;
+
+                if (cond1 || cond2) {
+                    actualNewSub1x += item.amount;
+                }
+            });
+
+            // Update Actuals UI
+            document.getElementById('act-total-sub').textContent = formatCurrency(actualTotalSub);
+            document.getElementById('act-pq-sub').textContent = formatCurrency(actualPqSub);
+            document.getElementById('act-new-sub').textContent = formatCurrency(actualNewSub1x);
+
+            // Calculate Achievements
+            const tgtTotalSub = Number(document.getElementById('tgt-total-sub').value) || 0;
+            const tgtPqSub = Number(document.getElementById('tgt-pq-sub').value) || 0;
+            const tgtNewSub = Number(document.getElementById('tgt-new-sub').value) || 0;
+
+            const calcAch = (act, tgt) => tgt > 0 ? (act / tgt) : 0;
+            
+            const achTotalSub = calcAch(actualTotalSub, tgtTotalSub);
+            const achPqSub = calcAch(actualPqSub, tgtPqSub);
+            const achNewSub = calcAch(actualNewSub1x, tgtNewSub);
+
+            document.getElementById('ach-total-sub').textContent = formatPercent(achTotalSub);
+            document.getElementById('ach-pq-sub').textContent = formatPercent(achPqSub);
+            document.getElementById('ach-new-sub').textContent = formatPercent(achNewSub);
+
+            // Calculate Total Weighted Achievement
+            const totalWeightedAch = (achTotalSub * 0.6) + (achPqSub * 0.2) + (achNewSub * 0.2);
+            document.getElementById('perf-total-achieved').textContent = formatPercent(totalWeightedAch);
         }
 
         // New Manual Comparison Logic
@@ -970,10 +1346,14 @@
             document.getElementById('comparison-placeholder').classList.add('hidden');
             document.getElementById('comparison-content').classList.remove('hidden');
 
-            const prevMap = new Map(state.compOldData.map(i => [i.id, i]));
+            // 僅比對 EffectivePeriod 或 EffectiveDate 為 2026 開頭的紀錄
+            const oldDataFiltered = state.compOldData.filter(item => item.effectivePeriod.startsWith('2026') || item.effectiveDate.startsWith('2026'));
+            const newDataFiltered = state.compNewData.filter(item => item.effectivePeriod.startsWith('2026') || item.effectiveDate.startsWith('2026'));
+
+            const prevMap = new Map(oldDataFiltered.map(i => [i.id, i]));
             const added = [], changed = [], deleted = [];
 
-            state.compNewData.forEach(curr => {
+            newDataFiltered.forEach(curr => {
                 const prev = prevMap.get(curr.id);
                 if (!prev) added.push(curr);
                 else {
@@ -1009,7 +1389,18 @@
             document.getElementById('nav-' + tabId).classList.add('active');
             document.querySelectorAll('#content-area > div').forEach(el => el.classList.add('hidden'));
             document.getElementById('view-' + tabId).classList.remove('hidden');
-            document.getElementById('page-title').textContent = { 'upload': '資料上傳', 'dashboard': '綜合分析儀表板', 'comparison': '主資料差異分析', 'customer': '特定客戶分析' }[tabId];
+            
+            const titles = { 
+                'upload': '資料上傳', 
+                'dashboard': '綜合分析儀表板', 
+                'performance': '業績達成分析',
+                'comparison': '主資料差異分析', 
+                'customer': '特定客戶分析' 
+            };
+            document.getElementById('page-title').textContent = titles[tabId];
+            
+            // Recalculate on switch if needed
+            if(tabId === 'performance') updatePerformance();
         }
 
         switchTab('upload');
